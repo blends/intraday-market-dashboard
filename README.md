@@ -12,7 +12,7 @@ A polished, dynamic financial dashboard built with Streamlit, optimized for pass
 - **Better Performance**: Optimized caching with TTL, periodic cache clearing
 - **More Stocks**: Increased default to 75 stocks for better sector coverage
 
-## 🖥️ Screenshots
+## Screenshots
 
 The dashboard features:
 - Animated header with market status badge
