@@ -43,10 +43,8 @@ Access at `http://localhost:8501`
 
 ### Fire TV Deployment
 
-1. **Deploy to Streamlit Cloud**:
-   - Push to GitHub
-   - Connect at [share.streamlit.io](https://share.streamlit.io)
-   - One-click deploy
+1. **Deployed to Streamlit Cloud**:
+   - Connect at [share.streamlit.io](https://intraday-market-dashboard.streamlit.app/)
 
 2. **On Fire TV**:
    - Install "Fully Kiosk Browser" (recommended) or "Silk Browser"
