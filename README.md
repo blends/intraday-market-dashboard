@@ -1,8 +1,8 @@
-# 📈 Market Dashboard for passive displays
+# Market Dashboard for passive displays
 
 A polished, dynamic financial dashboard built with Streamlit, optimized for passive display on Fire TV devices. Features animated metric cards, sector analysis, intraday indicators, and reliable auto-refresh.
 
-## ✨ What's New in v2.0
+## What's New
 
 - **Animated Metric Cards**: Glassmorphism effects with scanning light animations
 - **Sector Performance**: Real-time sector breakdown with treemap visualization
@@ -25,12 +25,12 @@ The dashboard features:
 - Volume leaders table
 - Growth stocks screener (4/4 criteria)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Local Development
 
 ```bash
-cd market_dashboard_v2
+cd market_dashboard
 
 # Install dependencies
 pip install -r requirements.txt
@@ -53,7 +53,7 @@ Access at `http://localhost:8501`
    - Navigate to your dashboard URL
    - Enable fullscreen/kiosk mode
 
-## ⚙️ Configuration
+## Configuration
 
 ### Via Sidebar (Runtime)
 - Refresh intervals (market open/closed)
@@ -71,7 +71,7 @@ secondaryBackgroundColor = "#1a1f3a"
 textColor = "#ffffff"
 ```
 
-## 📊 Features Explained
+## Features Explained
 
 ### Metric Cards
 Custom CSS creates the polished look:
@@ -104,7 +104,7 @@ Screens for stocks meeting ALL criteria:
 4. 50-day avg volume ≥ 100,000
 5. Not biotech/pharma (configurable)
 
-## 🔧 Technical Details
+## Technical Details
 
 ### Auto-Refresh
 Uses `streamlit-autorefresh` component:
@@ -130,7 +130,7 @@ Uses `streamlit-autorefresh` component:
 - Native Streamlit components with custom styling
 - CSS animations for visual polish
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 market_dashboard_v2/
@@ -141,7 +141,7 @@ market_dashboard_v2/
     └── config.toml           # Theme configuration
 ```
 
-## 🎨 Color Palette
+## Color Palette
 
 | Color | Hex | Usage |
 |-------|-----|-------|
@@ -154,26 +154,18 @@ market_dashboard_v2/
 | Text Primary | `#ffffff` | Main text |
 | Text Secondary | `#8892b0` | Labels, subtitles |
 
-## 🚧 Known Limitations
+## Known Limitations
 
 1. **Streamlit Re-execution**: Full script re-runs on refresh (framework limitation)
 2. **Chart Flickering**: Charts redraw completely on update
 3. **Growth Screening**: Limited to 35 stocks to avoid API rate limits
 4. **Sector Classification**: Uses predefined mapping + yfinance fallback
 
-## 🔮 Future Enhancements
-
-- [ ] WebSocket-based real-time updates (would require custom component)
-- [ ] Historical data persistence
-- [ ] Custom watchlist configuration
-- [ ] Alert thresholds
-- [ ] Multi-page layout with carousel
-
-## 📄 License
+## License
 
 MIT License - Use freely for personal or commercial purposes.
 
-## 🙏 Credits
+## Credits
 
 - [Streamlit](https://streamlit.io/) - Web framework
 - [yfinance](https://github.com/ranaroussi/yfinance) - Yahoo Finance API
