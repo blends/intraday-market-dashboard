@@ -1,4 +1,4 @@
-# 📈 Market Dashboard v2.0 for Fire TV
+# 📈 Market Dashboard for passive displays
 
 A polished, dynamic financial dashboard built with Streamlit, optimized for passive display on Fire TV devices. Features animated metric cards, sector analysis, intraday indicators, and reliable auto-refresh.
 
