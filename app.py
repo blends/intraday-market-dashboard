@@ -35,7 +35,7 @@ st.set_page_config(
 DEFAULT_CONFIG = {
     'refresh_interval_market_open': 5,      # minutes
     'refresh_interval_market_closed': 30,   # minutes
-    'stock_count': 75,                      # Increased for better sector coverage
+    'stock_count': 90,                      # Increased for better sector coverage
     'top_gainers_count': 10,
     'top_losers_count': 5,
     'volume_leaders_count': 10,
@@ -506,7 +506,7 @@ def get_sector_for_symbol(symbol: str, info: Dict = None) -> str:
 # ============================================================================
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_most_active_stocks(count: int = 75) -> List[Dict]:
+def get_most_active_stocks(count: int = 90) -> List[Dict]:
     """Fetch most active stocks from Yahoo Finance screener"""
     url = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
     params = {'scrIds': 'most_actives', 'start': 0, 'count': count}
