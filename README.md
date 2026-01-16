@@ -10,7 +10,7 @@ A polished, dynamic financial dashboard built with Streamlit, optimized for pass
 - **Reliable Auto-Refresh**: Using `streamlit-autorefresh` component (not JavaScript injection)
 - **Enhanced CSS**: Full kiosk mode, burn-in prevention, TV-optimized styling
 - **Better Performance**: Optimized caching with TTL, periodic cache clearing
-- **More Stocks**: Increased default to 75 stocks for better sector coverage
+- **More Stocks**: Increased default to 90 stocks for better sector coverage
 
 ## Screenshots
 
