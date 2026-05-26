@@ -488,6 +488,21 @@ def get_market_status(avg_change: float) -> Tuple[str, str, str]:
     return "bearish", "📉", "BEARISH - Heavy Selling"
 
 
+def record_metric(key: str, value: float, maxlen: int = 30) -> List[float]:
+    """Append a value to a metric's per-session history and return the series.
+
+    Powers st.metric sparklines: the dashboard's metrics are point-in-time
+    snapshots, so the trend is built up across refreshes within a session.
+    """
+    history = st.session_state.setdefault('metric_history', {})
+    series = history.setdefault(key, [])
+    if value is not None and not pd.isna(value):
+        series.append(float(value))
+        if len(series) > maxlen:
+            del series[0]
+    return series
+
+
 def get_sector_for_symbol(symbol: str, info: Dict = None) -> str:
     """Get sector for a stock symbol"""
     # First check our mapping
@@ -890,29 +905,37 @@ def display_metrics_row(df: pd.DataFrame, breadth: Dict, growth_count: int):
             "Today's Sentiment",
             f"{avg_change:+.2f}%",
             delta_str,
-            delta_color="normal" if avg_change >= 0 else "inverse"
+            delta_color="normal" if avg_change >= 0 else "inverse",
+            chart_data=record_metric('sentiment', avg_change),
+            chart_type="area"
         )
-    
+
     with cols[2]:
         st.metric(
             "Gainers",
             breadth.get('gainers', 0),
-            f"{breadth.get('gainers_pct', 0):.0f}%"
+            f"{breadth.get('gainers_pct', 0):.0f}%",
+            chart_data=record_metric('gainers', breadth.get('gainers', 0)),
+            chart_type="bar"
         )
-    
+
     with cols[3]:
         losers_pct = 100 - breadth.get('gainers_pct', 0)
         st.metric(
             "Losers",
             breadth.get('losers', 0),
-            f"{losers_pct:.0f}%"
+            f"{losers_pct:.0f}%",
+            chart_data=record_metric('losers', breadth.get('losers', 0)),
+            chart_type="bar"
         )
-    
+
     with cols[4]:
         st.metric(
             "Total Volume",
             format_volume(total_volume),
-            "Today's activity"
+            "Today's activity",
+            chart_data=record_metric('total_volume', total_volume),
+            chart_type="area"
         )
     
     with cols[5]:
@@ -940,24 +963,30 @@ def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
             "A/D Ratio",
             f"{ad_ratio:.2f}",
             ad_status,
-            delta_color="normal" if ad_ratio >= 1 else "inverse"
+            delta_color="normal" if ad_ratio >= 1 else "inverse",
+            chart_data=record_metric('ad_ratio', ad_ratio),
+            chart_type="line"
         )
-    
+
     # Strong Movers
     with cols[1]:
         st.metric(
             "Strong Gainers",
             breadth.get('strong_gainers', 0),
-            "> 5% gain"
+            "> 5% gain",
+            chart_data=record_metric('strong_gainers', breadth.get('strong_gainers', 0)),
+            chart_type="bar"
         )
-    
+
     with cols[2]:
         st.metric(
             "Strong Losers",
             breadth.get('strong_losers', 0),
-            "> 5% loss"
+            "> 5% loss",
+            chart_data=record_metric('strong_losers', breadth.get('strong_losers', 0)),
+            chart_type="bar"
         )
-    
+
     # Relative Volume (simplified)
     with cols[3]:
         # This is a placeholder - would need historical average volume for true RVOL
@@ -966,9 +995,11 @@ def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
         st.metric(
             "Rel. Volume",
             f"{rel_vol:.1f}x",
-            "vs avg"
+            "vs avg",
+            chart_data=record_metric('rel_vol', rel_vol),
+            chart_type="area"
         )
-    
+
     # Market breadth percentage
     with cols[4]:
         gainers_pct = breadth.get('gainers_pct', 50)
@@ -984,7 +1015,9 @@ def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
             "Breadth",
             f"{gainers_pct:.0f}%",
             breadth_status,
-            delta_color="normal" if gainers_pct >= 50 else "inverse"
+            delta_color="normal" if gainers_pct >= 50 else "inverse",
+            chart_data=record_metric('breadth', gainers_pct),
+            chart_type="area"
         )
     
     # Close the wrapper div
@@ -1197,6 +1230,8 @@ def main():
         st.session_state['cached_stocks'] = None
     if 'last_refresh_time' not in st.session_state:
         st.session_state['last_refresh_time'] = datetime.now(pytz.timezone('US/Eastern'))
+    if 'metric_history' not in st.session_state:
+        st.session_state['metric_history'] = {}
     
     config = st.session_state['config']
 
