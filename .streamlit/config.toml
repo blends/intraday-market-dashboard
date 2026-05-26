@@ -1,0 +1,22 @@
+# Native theme mirroring the palette in app.py, so Streamlit's own chrome
+# (sidebar, widgets, metric sparklines, dataframes) matches the custom-CSS
+# dashboard body without relying on fragile data-testid selectors.
+[theme]
+base = "dark"
+primaryColor = "#00d4ff"
+backgroundColor = "#0a0e27"
+secondaryBackgroundColor = "#1a1f3a"
+textColor = "#ffffff"
+borderColor = "#2a2f4a"
+font = "Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+
+# Bullish green / bearish red used throughout the dashboard. These drive
+# native st.metric delta arrows and colored Markdown.
+greenColor = "#00ff88"
+redColor = "#ff3366"
+
+# Series palette for metric sparklines and Plotly/Altair/Vega charts.
+chartCategoricalColors = ["#00d4ff", "#00ff88", "#667eea", "#764ba2", "#ffa500", "#ff3366"]
+
+# Dataframe accents to match the cyan header styling.
+dataframeHeaderBackgroundColor = "#102a3a"
