@@ -812,11 +812,14 @@ def create_sector_heatmap(sector_df: pd.DataFrame) -> go.Figure:
 
 
 def create_gainers_losers_chart(gainers_df: pd.DataFrame, losers_df: pd.DataFrame) -> go.Figure:
-    """Create horizontal bar chart for top movers"""
-    # Prepare data
-    gainers = gainers_df.head(5).copy()
-    losers = losers_df.head(5).copy()
-    
+    """Create horizontal bar chart for top movers.
+
+    Expects the caller to pass already-sized frames (driven by the
+    top_gainers_count / top_losers_count config).
+    """
+    gainers = gainers_df.copy()
+    losers = losers_df.copy()
+
     fig = go.Figure()
     
     # Gainers
