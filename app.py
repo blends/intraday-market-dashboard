@@ -15,7 +15,6 @@ import pytz
 from typing import Dict, List, Tuple, Optional
 import plotly.graph_objects as go
 import plotly.express as px
-from streamlit_autorefresh import st_autorefresh
 
 # ============================================================================
 # PAGE CONFIG - Must be first Streamlit command
@@ -435,10 +434,10 @@ def is_market_open() -> bool:
 
 
 def get_refresh_interval(config: Dict) -> int:
-    """Get appropriate refresh interval based on market status"""
+    """Get the refresh interval in seconds based on market status"""
     if is_market_open():
-        return config['refresh_interval_market_open'] * 60 * 1000  # Convert to ms
-    return config['refresh_interval_market_closed'] * 60 * 1000
+        return config['refresh_interval_market_open'] * 60
+    return config['refresh_interval_market_closed'] * 60
 
 
 def format_volume(volume: float) -> str:
@@ -1200,152 +1199,157 @@ def main():
         st.session_state['last_refresh_time'] = datetime.now(pytz.timezone('US/Eastern'))
     
     config = st.session_state['config']
-    
+
     # Inject custom CSS
     inject_custom_css()
-    
+
     # Render sidebar and get updated config
     config = render_sidebar(config)
     st.session_state['config'] = config
-    
-    # Auto-refresh component
+
+    # The dashboard body runs inside a fragment with run_every set, so Streamlit
+    # reruns only this section on the refresh interval instead of re-executing
+    # the whole script. That avoids rebuilding the sidebar/CSS and the full-page
+    # flicker on every refresh. Sidebar interactions still trigger a full rerun,
+    # which re-reads run_every and picks up any changed interval.
     refresh_interval = get_refresh_interval(config)
-    count = st_autorefresh(interval=refresh_interval, limit=None, key="dashboard_refresh")
-    
-    # Periodic cache clear to prevent stale data
-    if count > 0 and count % 5 == 0:
-        st.cache_data.clear()
-    
-    # Fetch market data
-    with st.spinner(""):
-        stocks_data = get_most_active_stocks(config['stock_count'])
-    
-    # Handle data fetch errors
-    if not stocks_data:
-        if st.session_state['cached_stocks']:
-            stocks_data = st.session_state['cached_stocks']
-            st.warning("⚠️ Using cached data - live feed temporarily unavailable")
+
+    @st.fragment(run_every=refresh_interval)
+    def render_dashboard():
+        config = st.session_state['config']
+
+        # Fetch market data
+        with st.spinner(""):
+            stocks_data = get_most_active_stocks(config['stock_count'])
+
+        # Handle data fetch errors
+        if not stocks_data:
+            if st.session_state['cached_stocks']:
+                stocks_data = st.session_state['cached_stocks']
+                st.warning("⚠️ Using cached data - live feed temporarily unavailable")
+            else:
+                st.error("❌ Unable to fetch market data. Please check connection and try again.")
+                return
         else:
-            st.error("❌ Unable to fetch market data. Please check connection and try again.")
-            return
-    else:
-        st.session_state['cached_stocks'] = stocks_data
-        st.session_state['last_error'] = None
-        st.session_state['last_refresh_time'] = datetime.now(pytz.timezone('US/Eastern'))
-    
-    # Convert to DataFrame
-    df = pd.DataFrame([{
-        'Symbol': s.get('symbol', ''),
-        'Name': s.get('shortName', 'N/A'),
-        'Price': s.get('regularMarketPrice', 0),
-        'Change (%)': s.get('regularMarketChangePercent', 0),
-        'Volume': s.get('regularMarketVolume', 0),
-    } for s in stocks_data])
-    
-    # Calculate derived data
-    breadth = calculate_breadth_indicators(df)
-    sector_df = calculate_sector_performance(df)
-    avg_change = df['Change (%)'].mean() if not df.empty else 0
-    
-    # Sort for display
-    gainers_df = df[df['Change (%)'] > 0].nlargest(config['top_gainers_count'], 'Change (%)')
-    losers_df = df[df['Change (%)'] < 0].nsmallest(config['top_losers_count'], 'Change (%)')
-    
-    # Screen growth stocks
-    growth_stocks = screen_growth_stocks(stocks_data, config)
-    
-    # ========== DASHBOARD LAYOUT ==========
-    
-    # Wrap in div for burn-in prevention
-    st.markdown('<div class="dashboard-wrapper">', unsafe_allow_html=True)
-    
-    # Header
-    display_header(avg_change)
-    
-    # Main metrics row
-    display_metrics_row(df, breadth, len(growth_stocks))
-    
-    st.markdown("---")
-    
-    # Intraday indicators row
-    display_intraday_metrics(df, breadth)
-    
-    st.markdown("---")
-    
-    # Charts row
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        fig = create_gainers_losers_chart(gainers_df, losers_df)
-        st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
-    
-    with col2:
-        fig = create_volume_chart(df.nlargest(10, 'Volume'))
-        st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
-    
-    st.markdown("---")
-    
-    # Sector Performance
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        display_sector_performance(sector_df)
-    
-    with col2:
-        if not sector_df.empty:
-            fig = create_sector_heatmap(sector_df)
+            st.session_state['cached_stocks'] = stocks_data
+            st.session_state['last_error'] = None
+            st.session_state['last_refresh_time'] = datetime.now(pytz.timezone('US/Eastern'))
+
+        # Convert to DataFrame
+        df = pd.DataFrame([{
+            'Symbol': s.get('symbol', ''),
+            'Name': s.get('shortName', 'N/A'),
+            'Price': s.get('regularMarketPrice', 0),
+            'Change (%)': s.get('regularMarketChangePercent', 0),
+            'Volume': s.get('regularMarketVolume', 0),
+        } for s in stocks_data])
+
+        # Calculate derived data
+        breadth = calculate_breadth_indicators(df)
+        sector_df = calculate_sector_performance(df)
+        avg_change = df['Change (%)'].mean() if not df.empty else 0
+
+        # Sort for display
+        gainers_df = df[df['Change (%)'] > 0].nlargest(config['top_gainers_count'], 'Change (%)')
+        losers_df = df[df['Change (%)'] < 0].nsmallest(config['top_losers_count'], 'Change (%)')
+
+        # Screen growth stocks
+        growth_stocks = screen_growth_stocks(stocks_data, config)
+
+        # ========== DASHBOARD LAYOUT ==========
+
+        # Wrap in div for burn-in prevention
+        st.markdown('<div class="dashboard-wrapper">', unsafe_allow_html=True)
+
+        # Header
+        display_header(avg_change)
+
+        # Main metrics row
+        display_metrics_row(df, breadth, len(growth_stocks))
+
+        st.markdown("---")
+
+        # Intraday indicators row
+        display_intraday_metrics(df, breadth)
+
+        st.markdown("---")
+
+        # Charts row
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fig = create_gainers_losers_chart(gainers_df, losers_df)
             st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
-    
-    st.markdown("---")
-    
-    # Tables section
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        display_movers_table(gainers_df, "Top Gainers", "🚀")
-    
-    with col2:
-        display_movers_table(losers_df, "Top Losers", "📉")
-    
-    st.markdown("---")
-    
-    # Volume Leaders
-    display_volume_leaders(df)
-    
-    st.markdown("---")
-    
-    # Growth Stocks
-    display_growth_stocks(growth_stocks)
-    
-    # Close wrapper
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Footer with timestamp and countdown
-    et = pytz.timezone('US/Eastern')
-    now = datetime.now(et)
-    refresh_min = config['refresh_interval_market_open'] if is_market_open() else config['refresh_interval_market_closed']
-    refresh_sec = refresh_min * 60
-    
-    # Calculate time until next refresh
-    last_refresh = st.session_state.get('last_refresh_time', now)
-    elapsed = (now - last_refresh).total_seconds()
-    remaining = max(0, refresh_sec - elapsed)
-    remaining_min = int(remaining // 60)
-    remaining_sec = int(remaining % 60)
-    
-    # Format countdown
-    if remaining_min > 0:
-        countdown_str = f"{remaining_min}m {remaining_sec}s"
-    else:
-        countdown_str = f"{remaining_sec}s"
-    
-    st.markdown(f"""
-    <div class="last-updated">
-        Last updated: {last_refresh.strftime('%H:%M:%S ET')} • 
-        Next refresh in: <strong style="color: {COLORS['accent']};">{countdown_str}</strong> • 
-        Interval: {refresh_min} min
-    </div>
-    """, unsafe_allow_html=True)
+
+        with col2:
+            fig = create_volume_chart(df.nlargest(10, 'Volume'))
+            st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
+
+        st.markdown("---")
+
+        # Sector Performance
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            display_sector_performance(sector_df)
+
+        with col2:
+            if not sector_df.empty:
+                fig = create_sector_heatmap(sector_df)
+                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
+
+        st.markdown("---")
+
+        # Tables section
+        col1, col2 = st.columns(2)
+
+        with col1:
+            display_movers_table(gainers_df, "Top Gainers", "🚀")
+
+        with col2:
+            display_movers_table(losers_df, "Top Losers", "📉")
+
+        st.markdown("---")
+
+        # Volume Leaders
+        display_volume_leaders(df)
+
+        st.markdown("---")
+
+        # Growth Stocks
+        display_growth_stocks(growth_stocks)
+
+        # Close wrapper
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Footer with timestamp and countdown
+        et = pytz.timezone('US/Eastern')
+        now = datetime.now(et)
+        refresh_min = config['refresh_interval_market_open'] if is_market_open() else config['refresh_interval_market_closed']
+        refresh_sec = refresh_min * 60
+
+        # Calculate time until next refresh
+        last_refresh = st.session_state.get('last_refresh_time', now)
+        elapsed = (now - last_refresh).total_seconds()
+        remaining = max(0, refresh_sec - elapsed)
+        remaining_min = int(remaining // 60)
+        remaining_sec = int(remaining % 60)
+
+        # Format countdown
+        if remaining_min > 0:
+            countdown_str = f"{remaining_min}m {remaining_sec}s"
+        else:
+            countdown_str = f"{remaining_sec}s"
+
+        st.markdown(f"""
+        <div class="last-updated">
+            Last updated: {last_refresh.strftime('%H:%M:%S ET')} •
+            Next refresh in: <strong style="color: {COLORS['accent']};">{countdown_str}</strong> •
+            Interval: {refresh_min} min
+        </div>
+        """, unsafe_allow_html=True)
+
+    render_dashboard()
 
 
 if __name__ == "__main__":
