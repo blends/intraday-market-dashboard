@@ -1065,7 +1065,7 @@ def display_movers_table(df: pd.DataFrame, title: str, emoji: str):
     
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=min(400, 35 * len(display_df) + 38)
     )
@@ -1100,7 +1100,7 @@ def display_growth_stocks(growth_stocks: List[Dict]):
     
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=min(450, 35 * len(display_df) + 38)
     )
@@ -1121,7 +1121,7 @@ def display_volume_leaders(df: pd.DataFrame):
     
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=min(400, 35 * len(display_df) + 38)
     )
@@ -1164,7 +1164,7 @@ def render_sidebar(config: Dict) -> Dict:
         
         st.markdown("---")
         
-        if st.button("🔄 Force Refresh", use_container_width=True):
+        if st.button("🔄 Force Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
         
@@ -1277,11 +1277,11 @@ def main():
     
     with col1:
         fig = create_gainers_losers_chart(gainers_df, losers_df)
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
     
     with col2:
         fig = create_volume_chart(df.nlargest(10, 'Volume'))
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
     
     st.markdown("---")
     
@@ -1294,7 +1294,7 @@ def main():
     with col2:
         if not sector_df.empty:
             fig = create_sector_heatmap(sector_df)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
     
     st.markdown("---")
     
