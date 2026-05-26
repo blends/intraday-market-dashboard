@@ -506,18 +506,31 @@ def get_sector_for_symbol(symbol: str, info: Dict = None) -> str:
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_most_active_stocks(count: int = 90) -> List[Dict]:
-    """Fetch most active stocks from Yahoo Finance screener"""
+    """Fetch most active stocks from Yahoo Finance screener.
+
+    The endpoint is undocumented and prone to transient 401/429/5xx
+    responses, so retry a few times with exponential backoff and record
+    the failure reason in last_error so the caller can show a diagnostic.
+    """
     url = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
     params = {'scrIds': 'most_actives', 'start': 0, 'count': count}
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            return data['finance']['result'][0]['quotes']
-    except Exception as e:
-        st.session_state['last_error'] = f"API Error: {str(e)}"
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=15)
+            if response.status_code == 200:
+                quotes = response.json()['finance']['result'][0]['quotes']
+                st.session_state['last_error'] = None
+                return quotes
+            last_error = f"HTTP {response.status_code} from Yahoo screener"
+        except Exception as e:
+            last_error = f"API Error: {str(e)}"
+        if attempt < 2:
+            time.sleep(2 ** attempt)  # 1s, 2s
+
+    st.session_state['last_error'] = last_error
     return []
 
 
@@ -594,8 +607,10 @@ def calculate_breadth_indicators(df: pd.DataFrame) -> Dict:
     losers = len(df[df['Change (%)'] < 0])
     unchanged = total - gainers - losers
     
-    # Advance/Decline ratio
-    ad_ratio = gainers / losers if losers > 0 else gainers
+    # Advance/Decline ratio. With zero declines the ratio is undefined
+    # (effectively infinite); represent that explicitly rather than
+    # returning a raw gainer count that would render as e.g. "45.00x".
+    ad_ratio = gainers / losers if losers > 0 else float('inf')
     
     # New highs/lows (simplified - stocks within 5% of 52-week high/low)
     # This would require additional data, so we'll estimate
@@ -901,7 +916,8 @@ def display_metrics_row(df: pd.DataFrame, breadth: Dict, growth_count: int):
         )
 
     with cols[3]:
-        losers_pct = 100 - breadth.get('gainers_pct', 0)
+        total = breadth.get('total', 0)
+        losers_pct = (breadth.get('losers', 0) / total * 100) if total > 0 else 0
         st.metric(
             "Losers",
             breadth.get('losers', 0),
@@ -936,9 +952,10 @@ def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
     with cols[0]:
         ad_ratio = breadth.get('ad_ratio', 1)
         ad_status = "Bullish" if ad_ratio > 1.5 else "Bearish" if ad_ratio < 0.67 else "Neutral"
+        ad_display = "∞" if ad_ratio == float('inf') else f"{ad_ratio:.2f}"
         st.metric(
             "A/D Ratio",
-            f"{ad_ratio:.2f}",
+            ad_display,
             ad_status,
             delta_color="normal" if ad_ratio >= 1 else "inverse"
         )
@@ -1224,11 +1241,13 @@ def main():
 
         # Handle data fetch errors
         if not stocks_data:
+            reason = st.session_state.get('last_error')
+            detail = f" ({reason})" if reason else ""
             if st.session_state['cached_stocks']:
                 stocks_data = st.session_state['cached_stocks']
-                st.warning("⚠️ Using cached data - live feed temporarily unavailable")
+                st.warning(f"⚠️ Using cached data - live feed temporarily unavailable{detail}")
             else:
-                st.error("❌ Unable to fetch market data. Please check connection and try again.")
+                st.error(f"❌ Unable to fetch market data. Please check connection and try again.{detail}")
                 return
         else:
             st.session_state['cached_stocks'] = stocks_data
