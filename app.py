@@ -148,6 +148,11 @@ def inject_custom_css():
     [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stDecoration"] { display: none !important; }
     [data-testid="stStatusWidget"] { display: none !important; }
+
+    /* The sidebar expand toggle lives inside the hidden header, so re-show it
+       explicitly — otherwise the collapsed sidebar is unreachable. (visibility
+       on a child overrides a hidden parent.) */
+    [data-testid="stExpandSidebarButton"] { visibility: visible !important; }
     
     /* Reclaim header space */
     .main .block-container {
