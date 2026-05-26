@@ -103,6 +103,14 @@ SECTOR_MAP = {
                       'VIAV', 'CIEN', 'INFN', 'COMM', 'CALX', 'IRDM', 'GSAT', 'ASTS', 'LUNR', 'RDW', 'SPIR'],
 }
 
+# Inverted symbol->sector lookup, built once so classification is O(1) per
+# symbol rather than scanning every sector list on each call.
+SYMBOL_TO_SECTOR = {
+    symbol: sector
+    for sector, symbols in SECTOR_MAP.items()
+    for symbol in symbols
+}
+
 # ============================================================================
 # CUSTOM CSS - Polished dark theme with animations
 # ============================================================================
@@ -490,10 +498,10 @@ def get_market_status(avg_change: float) -> Tuple[str, str, str]:
 
 def get_sector_for_symbol(symbol: str, info: Dict = None) -> str:
     """Get sector for a stock symbol"""
-    # First check our mapping
-    for sector, symbols in SECTOR_MAP.items():
-        if symbol in symbols:
-            return sector
+    # O(1) lookup against the inverted map built once at import
+    sector = SYMBOL_TO_SECTOR.get(symbol)
+    if sector:
+        return sector
     # Fall back to yfinance info if provided
     if info and 'sector' in info:
         return info.get('sector', 'Other')
@@ -690,9 +698,12 @@ def screen_growth_stocks(stocks_data: List[Dict], config: Dict) -> List[Dict]:
 # ============================================================================
 
 def create_volume_chart(df: pd.DataFrame) -> go.Figure:
-    """Create volume leaders bar chart with gain/loss coloring"""
-    df = df.head(10).copy()
-    
+    """Create volume leaders bar chart with gain/loss coloring.
+
+    Expects the caller to pass an already-ranked/trimmed frame.
+    """
+    df = df.copy()
+
     colors = [COLORS['positive'] if x >= 0 else COLORS['negative'] 
               for x in df['Change (%)']]
     
@@ -1122,11 +1133,11 @@ def display_growth_stocks(growth_stocks: List[Dict]):
     )
 
 
-def display_volume_leaders(df: pd.DataFrame):
+def display_volume_leaders(df: pd.DataFrame, count: int = 10):
     """Display volume leaders table"""
     st.markdown('<div class="section-header">📊 Volume Leaders</div>', unsafe_allow_html=True)
-    
-    volume_df = df.nlargest(10, 'Volume').copy()
+
+    volume_df = df.nlargest(count, 'Volume').copy()
     volume_df['Rank'] = range(1, len(volume_df) + 1)
     
     display_df = volume_df[['Rank', 'Symbol', 'Name', 'Volume', 'Price', 'Change (%)']].copy()
@@ -1169,15 +1180,30 @@ def render_sidebar(config: Dict) -> Dict:
             "Min EPS Growth %", 0, 200, config['growth_eps_threshold'])
         config['growth_min_price'] = st.number_input(
             "Min Stock Price $", 0.0, 100.0, config['growth_min_price'])
+        config['growth_min_volume'] = st.number_input(
+            "Min Avg Volume", 0, 10_000_000, config['growth_min_volume'], step=50_000,
+            help="Minimum 50-day average volume for growth screening")
         config['exclude_biotech'] = st.checkbox(
             "Exclude Biotech/Pharma", config['exclude_biotech'])
-        
+
         st.markdown("### 📊 Display Settings")
         config['stock_count'] = st.slider(
             "Stocks to Fetch", 25, 100, config['stock_count'],
             help="More stocks = better sector coverage but slower load"
         )
-        
+        config['top_gainers_count'] = st.slider(
+            "Top Gainers", 3, 25, config['top_gainers_count'],
+            help="Rows shown in the Top Gainers table"
+        )
+        config['top_losers_count'] = st.slider(
+            "Top Losers", 3, 25, config['top_losers_count'],
+            help="Rows shown in the Top Losers table"
+        )
+        config['volume_leaders_count'] = st.slider(
+            "Volume Leaders", 3, 25, config['volume_leaders_count'],
+            help="Bars/rows shown in the Volume Leaders chart and table"
+        )
+
         st.markdown("---")
         
         if st.button("🔄 Force Refresh", width='stretch'):
@@ -1301,7 +1327,7 @@ def main():
             st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
 
         with col2:
-            fig = create_volume_chart(df.nlargest(10, 'Volume'))
+            fig = create_volume_chart(df.nlargest(config['volume_leaders_count'], 'Volume'))
             st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
 
         st.markdown("---")
@@ -1331,7 +1357,7 @@ def main():
         st.markdown("---")
 
         # Volume Leaders
-        display_volume_leaders(df)
+        display_volume_leaders(df, config['volume_leaders_count'])
 
         st.markdown("---")
 
