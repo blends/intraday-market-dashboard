@@ -619,12 +619,31 @@ def calculate_breadth_indicators(df: pd.DataFrame) -> Dict:
     # (effectively infinite); represent that explicitly rather than
     # returning a raw gainer count that would render as e.g. "45.00x".
     ad_ratio = gainers / losers if losers > 0 else float('inf')
-    
-    # New highs/lows (simplified - stocks within 5% of 52-week high/low)
-    # This would require additional data, so we'll estimate
+
     strong_gainers = len(df[df['Change (%)'] > 5])
     strong_losers = len(df[df['Change (%)'] < -5])
-    
+
+    # New highs/lows: stocks trading within 5% of their 52-week high/low,
+    # using the screener's fiftyTwoWeekHigh/Low fields. Guard on valid
+    # (>0) bounds and price so missing fields don't produce false hits.
+    near_highs = 0
+    near_lows = 0
+    if {'52W High', '52W Low', 'Price'}.issubset(df.columns):
+        priced = df[df['Price'] > 0]
+        valid_high = priced[priced['52W High'] > 0]
+        near_highs = int((valid_high['Price'] >= 0.95 * valid_high['52W High']).sum())
+        valid_low = priced[priced['52W Low'] > 0]
+        near_lows = int((valid_low['Price'] <= 1.05 * valid_low['52W Low']).sum())
+
+    # True relative volume: today's volume vs the 3-month average volume,
+    # per stock. Use the median across stocks with a valid average so a
+    # single outlier doesn't skew the headline figure. None => no data.
+    rel_volume = None
+    if {'Volume', 'Avg Volume'}.issubset(df.columns):
+        valid_vol = df[df['Avg Volume'] > 0]
+        if not valid_vol.empty:
+            rel_volume = float((valid_vol['Volume'] / valid_vol['Avg Volume']).median())
+
     return {
         'total': total,
         'gainers': gainers,
@@ -634,6 +653,9 @@ def calculate_breadth_indicators(df: pd.DataFrame) -> Dict:
         'ad_ratio': ad_ratio,
         'strong_gainers': strong_gainers,
         'strong_losers': strong_losers,
+        'near_highs': near_highs,
+        'near_lows': near_lows,
+        'rel_volume': rel_volume,
     }
 
 
@@ -950,15 +972,15 @@ def display_metrics_row(df: pd.DataFrame, breadth: Dict, growth_count: int):
         )
 
 
-def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
+def display_intraday_metrics(breadth: Dict):
     """Display intraday-specific metrics with scanning animation"""
     st.markdown('<div class="section-header">📊 Intraday Indicators</div>', unsafe_allow_html=True)
     
     # Start wrapper div for animation targeting
     st.markdown('<div class="intraday-section">', unsafe_allow_html=True)
     
-    cols = st.columns(5)
-    
+    cols = st.columns(7)
+
     # Advance/Decline Ratio
     with cols[0]:
         ad_ratio = breadth.get('ad_ratio', 1)
@@ -971,34 +993,51 @@ def display_intraday_metrics(df: pd.DataFrame, breadth: Dict):
             delta_color="normal" if ad_ratio >= 1 else "inverse"
         )
 
-    # Strong Movers
+    # New highs (within 5% of 52-week high)
     with cols[1]:
+        st.metric(
+            "New Highs",
+            breadth.get('near_highs', 0),
+            "≤5% from 52W high"
+        )
+
+    # New lows (within 5% of 52-week low)
+    with cols[2]:
+        st.metric(
+            "New Lows",
+            breadth.get('near_lows', 0),
+            "≤5% from 52W low",
+            delta_color="inverse"
+        )
+
+    # Strong Movers
+    with cols[3]:
         st.metric(
             "Strong Gainers",
             breadth.get('strong_gainers', 0),
             "> 5% gain"
         )
 
-    with cols[2]:
+    with cols[4]:
         st.metric(
             "Strong Losers",
             breadth.get('strong_losers', 0),
-            "> 5% loss"
+            "> 5% loss",
+            delta_color="inverse"
         )
 
-    # Relative Volume (simplified)
-    with cols[3]:
-        # This is a placeholder - would need historical average volume for true RVOL
-        avg_vol_per_stock = df['Volume'].mean() if not df.empty else 0
-        rel_vol = avg_vol_per_stock / 50_000_000  # Rough baseline
+    # Relative volume: median today's-vs-3-month-average across stocks
+    with cols[5]:
+        rel_vol = breadth.get('rel_volume')
+        rel_vol_display = f"{rel_vol:.1f}x" if rel_vol is not None else "N/A"
         st.metric(
             "Rel. Volume",
-            f"{rel_vol:.1f}x",
-            "vs avg"
+            rel_vol_display,
+            "median vs 3M avg"
         )
 
     # Market breadth percentage
-    with cols[4]:
+    with cols[6]:
         gainers_pct = breadth.get('gainers_pct', 50)
         if gainers_pct >= 70:
             breadth_status = "Very Strong"
@@ -1287,6 +1326,9 @@ def main():
             'Price': s.get('regularMarketPrice', 0),
             'Change (%)': s.get('regularMarketChangePercent', 0),
             'Volume': s.get('regularMarketVolume', 0),
+            'Avg Volume': s.get('averageDailyVolume3Month', 0),
+            '52W High': s.get('fiftyTwoWeekHigh', 0),
+            '52W Low': s.get('fiftyTwoWeekLow', 0),
         } for s in stocks_data])
 
         # Calculate derived data
@@ -1315,7 +1357,7 @@ def main():
         st.markdown("---")
 
         # Intraday indicators row
-        display_intraday_metrics(df, breadth)
+        display_intraday_metrics(breadth)
 
         st.markdown("---")
 
